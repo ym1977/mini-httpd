@@ -15,41 +15,42 @@
 #include <syslog.h>
 #include <dirent.h>
 
-#ifdef HTTPS 
+#if (MINI_HTTPD_HTTPS_ENABLED == 1)
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #endif
 
-#define _GNU_SOURCE   //enable the getopt_long
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE // enable the getopt_long
+#endif
+
 #include <getopt.h>
 
 /* daemon_init.c */
 void init_daemon(void);
 
 /* parse_config.c */
-char* Getconfig(char*);
+char *GetConfig(char *);
 extern FILE *configfp;
 
 /*parse_option.c */
-#ifdef HTTPS 
-void parse_option(int argc,char **argv,char* d,char** portp,char** logp,char** sslp,char* dossl);
+#if (MINI_HTTPD_HTTPS_ENABLED == 1)
+void parse_option(int argc, char **argv, char *d, char **portp, char **logp, char **sslp, char *dossl);
 #else
-void parse_option(int argc,char **argv,char* d,char** portp,char** logp);
+void parse_option(int argc, char **argv, char *d, char **portp, char **logp);
 #endif
 
 /* log.c */
 #define MAXLINELEN 8192
 extern FILE *logfp;
-void initlog(const char* logp);
+void initlog(const char *logp);
 void writetime();
-void writelog(const char* buf);
-char* timeModify(time_t timeval,char *time);
+void writelog(const char *buf);
+char *timeModify(time_t timeval, char *time);
 
 /* secure_access.c */
 int access_ornot(const char *destip); // 0 -> not 1 -> ok
 
 /* main.c */
 
-
 #endif
-

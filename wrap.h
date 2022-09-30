@@ -26,11 +26,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-
 /* Default file permissions are DEF_MODE & ~DEF_UMASK */
 /* $begin createmasks */
-#define DEF_MODE   S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH
-#define DEF_UMASK  S_IWGRP|S_IWOTH
+#define DEF_MODE S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
+#define DEF_UMASK S_IWGRP | S_IWOTH
 /* $end createmasks */
 
 /* Simplifies calls to bind(), connect(), and accept() */
@@ -41,7 +40,8 @@ typedef struct sockaddr SA;
 /* Persistent state for the robust I/O (Rio) package */
 /* $begin rio_t */
 #define RIO_BUFSIZE 8192
-typedef struct {
+typedef struct
+{
     int rio_fd;                /* descriptor for this internal buf */
     int rio_cnt;               /* unread bytes in internal buf */
     char *rio_bufptr;          /* next unread byte in internal buf */
@@ -50,13 +50,13 @@ typedef struct {
 /* $end rio_t */
 
 /* External variables */
-extern int h_errno;    /* defined by BIND for DNS errors */ 
+extern int h_errno;    /* defined by BIND for DNS errors */
 extern char **environ; /* defined by libc */
 
 /* Misc constants */
-#define	MAXLINE	 8192  /* max text line length */
-#define MAXBUF   8192  /* max I/O buffer size */
-#define LISTENQ  1024  /* second argument to listen() */
+#define MAXLINE 8192 /* max text line length */
+#define MAXBUF 8192  /* max I/O buffer size */
+#define LISTENQ 1024 /* second argument to listen() */
 
 /* Our own error-handling functions */
 void unix_error(char *msg);
@@ -101,7 +101,6 @@ void Fputs(const char *ptr, FILE *stream);
 size_t Fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 void Fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
 
-
 /* Sockets interface wrappers */
 int Socket(int domain, int type, int protocol);
 void Setsockopt(int s, int level, int optname, const void *optval, int optlen);
@@ -117,14 +116,14 @@ struct hostent *Gethostbyaddr(const char *addr, int len, int type);
 /* Rio (Robust I/O) package */
 ssize_t rio_readn(int fd, void *usrbuf, size_t n);
 ssize_t rio_writen(int fd, void *usrbuf, size_t n);
-void rio_readinitb(rio_t *rp, int fd); 
-ssize_t	rio_readnb(rio_t *rp, void *usrbuf, size_t n);
-ssize_t	rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen);
+void rio_readinitb(rio_t *rp, int fd);
+ssize_t rio_readnb(rio_t *rp, void *usrbuf, size_t n);
+ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen);
 
 /* Wrappers for Rio package */
 ssize_t Rio_readn(int fd, void *usrbuf, size_t n);
 void Rio_writen(int fd, void *usrbuf, size_t n);
-void Rio_readinitb(rio_t *rp, int fd); 
+void Rio_readinitb(rio_t *rp, int fd);
 ssize_t Rio_readnb(rio_t *rp, void *usrbuf, size_t n);
 ssize_t Rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen);
 
@@ -134,7 +133,7 @@ int open_listenfd(int portno);
 
 /* Wrappers for client/server helper functions */
 int Open_clientfd(char *hostname, int port);
-int Open_listenfd(int port); 
+int Open_listenfd(int port);
 
 /* Wrappers for others */
 int Daemon(int nochdir, int noclose);
