@@ -1,9 +1,11 @@
-Linux-C-Web-Server
+mini-httpd
 ==================
 
 Linux下的小型Web服务器，支持GET/POST/SSL等功能.
 ------
-这个主要是在CSAPP基础上做的，添加了POST，SSL，目录显示等功能。
+1. 在CSAPP基础上做的Linux-C-Web-Server，添加了POST，SSL，目录显示等功能。
+2. 在Linux-C-Web-Server基础上进行重构，目录结构、代码格式、编译方式等。
+
 ###
 实现功能：
 ###
@@ -17,3 +19,4 @@ Linux下的小型Web服务器，支持GET/POST/SSL等功能.
 
 博客地址：http://blog.csdn.net/yueguanghaidao/article/details/8450938/
 ###
+
