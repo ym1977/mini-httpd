@@ -1,10 +1,24 @@
+################################################################################
+# SSL/TLS support: 0, disabled; 1, enabled.
 HTTPS_ENABLED	?= 1
 
-BIN = mini-httpd
+################################################################################
+PRJ_DIR = .
 
+################################################################################
+INC_PATH = $(PRJ_DIR)/include
+SRC_PATH = $(PRJ_DIR)/src
+OBJ_PATH = $(PRJ_DIR)/obj
+BIN_PATH = $(PRJ_DIR)/bin
+
+BIN = ${BIN_PATH}/mini-httpd
+
+################################################################################
 CC = gcc
 
-CFLAGS = -O2 -Wall -I .
+################################################################################
+CFLAGS = -O2 -Wall
+CFLAGS = -I${INC_PATH}
 #CFLAGS = -g -I . 
 CFLAGS += -D_GNU_SOURCE
 ifeq ($(HTTPS_ENABLED),1)
@@ -12,45 +26,44 @@ CFLAGS += -DMINI_HTTPD_HTTPS_ENABLED=1
 else
 CFLAGS += -DMINI_HTTPD_HTTPS_ENABLED=0
 endif
-#CFLAGS += -Wunused-result
 
-SHARED =
-#If you support https,then SHARED=-DHTTPS -lpthread -lssl -lcrypto
+SOFLAGS =
+#If you support https,then SOFLAGS add -lssl -lcrypto
 ifeq ($(HTTPS_ENABLED),1)
-SHARED += -lssl -lcrypto 
+SOFLAGS += -lssl -lcrypto 
 endif
-SHARED += -lpthread 
+SOFLAGS += -lpthread 
 
-all: ${BIN}
+################################################################################
+SRC_CFILES = $(SRC_PATH)/main.c		\
+	$(SRC_PATH)/daemon_init.c	\
+	$(SRC_PATH)/log.c 		\
+	$(SRC_PATH)/parse_config.c 	\
+	$(SRC_PATH)/parse_option.c	\
+	$(SRC_PATH)/secure_access.c	\
+	$(SRC_PATH)/wrap.c
 
-${BIN}: main.o wrap.o parse_config.o daemon_init.o parse_option.o log.o secure_access.o cgi
-	$(CC) -o $@ main.o wrap.o parse_config.o daemon_init.o parse_option.o log.o secure_access.o $(SHARED) 
+################################################################################
+SRC_OBJ_FILES = $(subst $(SRC_PATH)/, $(OBJ_PATH)/, $(SRC_CFILES:.c=.o))
+SRC_OBJFILES := $(foreach n,$(SRC_OBJ_FILES),$(n))
 
-main.o: main.c
-	$(CC) $(CFLAGS) -c main.c
+################################################################################
+$(OBJ_PATH)/%.o: $(SRC_PATH)/%.c
+	@echo ":: compiling $^ ..."
+	@$(CC) $(CFLAGS) -c $^ -o $@
 
-wrap.o: wrap.c
-	$(CC) $(CFLAGS) -c wrap.c
+################################################################################
+all: ${BIN} cgi
 
-parse_config.o: parse_config.c parse.h
-	$(CC) $(CFLAGS) -c parse_config.c
-
-daemon_init.o: daemon_init.c parse.h
-	$(CC) $(CFLAGS) -c daemon_init.c
-
-parse_option.o: parse_option.c parse.h
-	$(CC) $(CFLAGS) -c parse_option.c
-
-log.o: log.c parse.h
-	$(CC) $(CFLAGS) -c log.c
-
-secure_access.o: secure_access.c  parse.h
-	$(CC) $(CFLAGS) -c secure_access.c
+################################################################################
+$(BIN): $(SRC_OBJFILES)
+	@echo ":: generate $@ ..."
+	@$(CC) -o $@ $^ $(SOFLAGS)
 
 cgi:
 	(cd cgi-bin; make)
 
 clean:
-	rm -f *.o main access.log *~
-	(cd cgi-bin; make clean)
+	@(cd cgi-bin; make clean)
+	@rm -f ${OBJ_PATH}/*.[do] ${BIN}
 

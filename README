@@ -1,21 +1,21 @@
-Webd uses the GET/POST method to serve static content
+mini-httpd uses the GET/POST method to serve static content
 (text, HTML, GIF, and JPG ....files) out of ./ and to serve dynamic
 content by running CGI programs out of ./cgi-bin.
 
-webd provides following functions:
+mini-httpd provides following functions:
 1.provide GET/POST method to view static content and run cgi script
 2.provide HTTP and HTTPS connection
 3.provide dircetory view function
 4.provide some access control based by ip address
 5.provide easy logging function
 
-To run Webd:
-   Run "webd" on the server machine, 
-	e.g., "webd"
-	Maybe you should type "./webd" if current directory is not in your $PATH
+To run mini-httpd:
+   Run "mini-httpd" on the server machine, 
+	e.g., "mini-httpd"
+	Maybe you should type "./mini-httpd" if current directory is not in your $PATH
 
    There are several argument option:
-   -d  --daemon        -> webd run in the background  
+   -d  --daemon        -> mini-httpd run in the background  
    -p  --port          -> assigned http port
    -s  --sslport       -> assigned https port
    -l  --log           -> assigned log path
@@ -25,12 +25,11 @@ To run Webd:
 
 
    So,you can also do this:
-   	webd -d -p 8888 -s 4444 -e 
+   	mini-httpd -d -p 8888 -s 4444 -e 
 
    If your port is less then 1024,you must have the root permission,or use the sudo command.
 
-
-   Point your browser at webd: for example,http port is 8888,and https port is 4444
+   Point your browser at mini-httpd: for example, http port is 8888, and https port is 4444
    you can view following page:
    	http:
 	    127.0.0.1:8000       home page
@@ -61,22 +60,22 @@ Files:
 	        postAuth.c       ->  the post method cgi script
 		Makefile         ->  cgi/bin/*.c Makefile
 	config.ini               ->  configuration file 
-	daemon_init.c            ->  daemon process 
 	doc                      ->  the web page root directory
-	log.c                    ->  provide logging 
-	main.c                   ->  the main source file
+	include/parse.h          ->  the main head file
+	include/wrap.h           ->  the wrap.c's head file
+	src/daemon_init.c        ->  daemon process 
+	src/log.c                ->  provide logging 
+	src/main.c               ->  the main source file
+	src/parse_config.c       ->  read the config.ini 
+	src/parse_option.c       ->  parse the argv 
+	src/secure_access.c      ->  provide easy access control
+	src/wrap.c               ->  must functions wrap file  
 	Makefile                 ->  *.c Makefile
-	parse_config.c           ->  read the config.ini 
-	parse.h                  ->  the main head file
-	parse_option.c           ->  parse the argv 
 	README                   ->  it's me 
-	secure_access.c          ->  provide easy access control
-	webserver.sh             ->  a shell script,to provide start/stop/restart/status the webd
+	webserver.sh             ->  a shell script,to provide start/stop/restart/status the mini-httpd
 	                             e.g. webserver.sh start/stop/restart/status
-	wrap.c                   ->  must functions wrap file  
-	wrap.h                   ->  the wrap.c's head file
 
 Bugs:
-	If openssl lib library isn't accessible in your computer,you should change the 
-	Makefile.For datail,you could see Makefile.
+	If openssl lib library isn't accessible in your computer, you should change the 
+	Makefile. For datail, you could see Makefile.
 
