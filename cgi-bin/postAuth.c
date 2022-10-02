@@ -1,5 +1,11 @@
-#include "wrap.h"
-#include "parse.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dirent.h>
+
+#ifndef MAXLINE
+#define MAXLINE 8192 /* max text line length */
+#endif
 
 int main(void)
 {

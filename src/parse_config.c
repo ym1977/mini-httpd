@@ -1,15 +1,20 @@
-#include "parse.h"
-#include "wrap.h"
-extern char *cwd;
+#include "parse_config.h"
 
-FILE *configfp = NULL;
+#include "wrap.h"
+
+#include <stdio.h>
+
+// extern char *cwd;
+
+static FILE *configfp = NULL;
+
 static FILE *getfp(char *path)
 {
 	configfp = Fopen(path, "r");
 	return configfp;
 }
 
-static char *getconfig(char *name)
+static char *getconfig(const char *pCwd, char *name)
 {
 	/*
 	pointer meaning:
@@ -25,7 +30,7 @@ static char *getconfig(char *name)
 	char tmp[256], fore[64], back[64], tmpcwd[MAXLINE];
 	char *fs, *fe, *equal, *bs, *be, *start;
 
-	strcpy(tmpcwd, cwd);
+	strcpy(tmpcwd, pCwd);
 	strcat(tmpcwd, "/");
 	FILE *fp = getfp(strcat(tmpcwd, "config.ini"));
 	while (fgets(tmp, 255, fp) != NULL)
@@ -69,9 +74,9 @@ static char *getconfig(char *name)
 		return NULL;
 }
 
-char *GetConfig(char *name)
+char *GetConfig(const char *pCwd, char *name)
 {
-	char *p = getconfig(name);
+	char *p = getconfig(pCwd, name);
 	if (p == NULL)
 	{
 		syslog(LOG_ERR, "there is no %s in the configure", name);

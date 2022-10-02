@@ -1,4 +1,11 @@
-#include "parse.h"
+#include "secure_access.h"
+
+#include "mini_httpd_debug.h"
+
+#include "parse_config.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 /*
  *  Function: can accesser access this web or not
@@ -32,18 +39,18 @@ static long long ipadd_to_longlong(const char *ip)
 	return (qian << 24) + (bai << 16) + (shi << 8) + ge;
 }
 
-int access_ornot(const char *destip) // 0 -> not 1 -> ok
+int access_ornot(const char *pCwd, const char *destip) // 0 -> not 1 -> ok
 {
 	// 192.168.1/255.255.255.0
 
 	char ipinfo[16], maskinfo[16];
 	char *p, *ip = ipinfo, *mask = maskinfo;
 	char count = 0;
-	char *maskget = GetConfig("mask");
+	char *maskget = GetConfig(pCwd, "mask");
 	const char *destipconst, *ipinfoconst, *maskinfoconst;
 	if (!maskget || strlen(maskget) == 0)
 	{
-		printf("ok:%s\n", maskget);
+		MINIHTTPD_LOG_DEBUG("ok:%s\n", maskget);
 		return 1;
 	}
 
@@ -98,7 +105,7 @@ int access_ornot(const char *destip) // 0 -> not 1 -> ok
 
 int main()
 {
-	printf("%d\n",access_ornot("127.0.0.1"));
+	printf("%d\n", access_ornot("127.0.0.1"));
 }
 
 */

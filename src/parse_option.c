@@ -1,26 +1,40 @@
-#include "parse.h"
+#include "parse_option.h"
 
-/* parse the command option
--d(--daemon)   daemon process
--p(--port)     assign http port
--s(--port)     assign https port
--l(--log)      log path
-*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <getopt.h>
+#include <unistd.h>
 
-static void usage(void)
+/*
+command options parser:
+ -d(--daemon)   daemon process
+ -p(--port)     assign http port
+ -s(--port)     assign https port
+ -l(--log)      log path
+ */
+
+static void ShowUsage(const char *pProcName)
 {
-	fprintf(stderr, "usage:./main [-d --daemon] [-p --port] [-s --sslport] [-l --log] [-v --version] [-h --help]\n\n");
+	fprintf(stderr,
+			"Usage:\n"
+			"\t%s [-d --daemon] [-p --port] [-s --sslport] [-l --log] [-v --version] [-h --help]\n\n",
+			pProcName);
+
 	exit(1);
 }
 
-static void version(void)
+static void ShowVersion(void)
 {
-	fprintf(stderr, "版本:1.0\n功能:web服务器的实现\n"
-					"提供GET,POST功能\n"
-					"实现SSL安全连接\n"
-					"提供目录访问和简单的访问控制\n\n"
-					"作者:...\n\n"
-					"SSL实现:基于OPENSSL库\n\n");
+	fprintf(stderr,
+			"版本:1.0\n"
+			"功能:迷你Web服务器实现\n"
+			"1) 提供基础GET/POST功能\n"
+			"2) 实现SSL安全连接\n"
+			"3) 提供目录访问和简单的访问控制\n\n"
+			"说明：\n\n"
+			"a) SSL功能基于OPENSSL库实现\n\n");
+
 	exit(1);
 }
 
@@ -85,14 +99,14 @@ void parse_option(int argc, char **argv, char *d, char **portp, char **logp)
 			exit(1);
 			break;
 		case 'h':
-			usage();
+			ShowUsage(argv[0]);
 			break;
 		case 'v':
-			version();
+			ShowVersion();
 			break;
 		case '?':
 			fprintf(stderr, "unknown option:%c\n", optopt);
-			usage();
+			ShowUsage(argv[0]);
 			break;
 		}
 	}

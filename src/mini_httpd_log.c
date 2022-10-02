@@ -1,4 +1,5 @@
-#include "parse.h"
+#include "mini_httpd_log.h"
+
 #include "wrap.h"
 
 FILE *logfp = NULL;

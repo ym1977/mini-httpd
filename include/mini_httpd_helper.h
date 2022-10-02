@@ -2,12 +2,13 @@
 #define MiniHttpdHelperH
 
 #include "wrap.h"
-#include "parse.h"
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+
+    void writePid(int option);
 
     void get_requesthdrs(rio_t *rp);
     void post_requesthdrs(rio_t *rp, int *length);
@@ -27,7 +28,7 @@ extern "C"
 #if (MINI_HTTPD_HTTPS_ENABLED == 1)
     /* $begin ssl */
     int ssl_prepare(int fd, char *pBuffer, int size);
-    void ssl_init(void);
+    void ssl_init(const char *pCwd);
     void https_getlength(char *buf, int *length);
     /* $end ssl */
 #endif

@@ -1,133 +1,12 @@
 #include "mini_httpd_helper.h"
 
+#include "mini_httpd_log.h"
+
+#include "parse_config.h"
+#include "parse_option.h"
+#include "secure_access.h"
+
 #include <unistd.h>
-
-#define PID_FILE "pid.file"
-
-static void doit(int fd);
-static void writePid(int option);
-
-static void sigChldHandler(int signo);
-
-static int isShowdir = 1;
-char *cwd;
-
-int main(int argc, char *argv[])
-{
-	int listenfd, connfd, port;
-	socklen_t clientlen;
-	pid_t pid;
-	struct sockaddr_in clientaddr;
-	char isdaemon = 0, *portp = NULL, *logp = NULL, tmpcwd[MAXLINE];
-
-#if (MINI_HTTPD_HTTPS_ENABLED == 1)
-	int sslport;
-	char dossl = 0, *sslportp = NULL;
-#endif
-
-	openlog(argv[0], LOG_NDELAY | LOG_PID, LOG_DAEMON);
-	cwd = (char *)get_current_dir_name();
-	strcpy(tmpcwd, cwd);
-	strcat(tmpcwd, "/");
-	/* parse argv */
-
-#if (MINI_HTTPD_HTTPS_ENABLED == 1)
-	parse_option(argc, argv, &isdaemon, &portp, &logp, &sslportp, &dossl);
-	sslportp == NULL ? (sslport = atoi(GetConfig("https"))) : (sslport = atoi(sslportp));
-
-	if (dossl == 1 || strcmp(GetConfig("dossl"), "yes") == 0)
-		dossl = 1;
-#else
-	parse_option(argc, argv, &isdaemon, &portp, &logp);
-#endif
-
-	// portp == NULL ? (port = atoi(GetConfig("http"))) : (port = atoi(portp));
-	if (portp == NULL)
-	{
-		port = atoi(GetConfig("http"));
-	}
-	else
-	{
-		port = atoi(portp);
-	}
-
-	Signal(SIGCHLD, sigChldHandler);
-
-	/* init log */
-	if (logp == NULL)
-		logp = GetConfig("log");
-	initlog(strcat(tmpcwd, logp));
-
-	/* whethe show dir */
-	if (strcmp(GetConfig("dir"), "no") == 0)
-		isShowdir = 0;
-
-	clientlen = sizeof(clientaddr);
-
-	if (isdaemon == 1 || strcmp(GetConfig("daemon"), "yes") == 0)
-		Daemon(1, 1);
-
-	writePid(1);
-
-/* $https start  */
-#if (MINI_HTTPD_HTTPS_ENABLED == 1)
-	if (dossl)
-	{
-		if ((pid = Fork()) == 0)
-		{
-			listenfd = Open_listenfd(sslport);
-			ssl_init();
-
-			while (1)
-			{
-				connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-				if (access_ornot(inet_ntoa(clientaddr.sin_addr)) == 0)
-				{
-					clienterror(connfd, "maybe this web server not open to you!", "403", "Forbidden", "mini-httpd couldn't read the file");
-					continue;
-				}
-
-				if ((pid = Fork()) > 0)
-				{
-					Close(connfd);
-					continue;
-				}
-				else if (pid == 0)
-				{
-					mini_httpd_ssl_enable();
-					doit(connfd);
-					exit(1);
-				}
-			}
-		}
-	}
-#endif
-
-	/* $end https */
-
-	listenfd = Open_listenfd(port);
-	while (1)
-	{
-		connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-		if (access_ornot(inet_ntoa(clientaddr.sin_addr)) == 0)
-		{
-			clienterror(connfd, "maybe this web server not open to you!", "403", "Forbidden", "mini-httpd couldn't read the file");
-			continue;
-		}
-
-		if ((pid = Fork()) > 0)
-		{
-			Close(connfd);
-			continue;
-		}
-		else if (pid == 0)
-		{
-			doit(connfd);
-			exit(1);
-		}
-	}
-}
-/* $end main */
 
 /*$sigChldHandler to protect zimble process */
 static void sigChldHandler(int signo)
@@ -138,10 +17,10 @@ static void sigChldHandler(int signo)
 /*$end sigChldHandler */
 
 /*
- * doit - handle one HTTP request/response transaction
+ * DoInteraction - handle one HTTP request/response transaction
  */
-/* $begin doit */
-static void doit(int fd)
+/* $begin DoInteraction */
+static void DoInteraction(const char *pCwd, int dirShowMode, int fd)
 {
 	int is_static, contentLength = 0, isGet = 1;
 	struct stat sbuf;
@@ -175,7 +54,7 @@ static void doit(int fd)
 	}
 
 	/* Parse URI from GET request */
-	is_static = parse_uri(cwd, uri, filename, cgiargs);
+	is_static = parse_uri(pCwd, uri, filename, cgiargs);
 
 	if (lstat(filename, &sbuf) < 0)
 	{
@@ -184,7 +63,7 @@ static void doit(int fd)
 		return;
 	}
 
-	if (S_ISDIR(sbuf.st_mode) && isShowdir)
+	if (S_ISDIR(sbuf.st_mode) && dirShowMode)
 		serve_dir(fd, filename);
 
 	if (strcasecmp(method, "POST") == 0)
@@ -237,19 +116,127 @@ static void doit(int fd)
 		}
 	}
 }
-/* $end doit */
+/* $end DoInteraction */
 
-/* $begin writePid  */
-/* if the process is running, the interger in the pid file is the pid, else is -1  */
-static void writePid(int option)
+int main(int argc, char *argv[])
 {
-	int pid;
-	FILE *fp = Fopen(PID_FILE, "w+");
-	if (option)
-		pid = (int)getpid();
+	char isdaemon = 0, *portp = NULL, *logp = NULL, tmpcwd[MAXLINE];
+
+	pid_t pid;
+
+	int isShowdir = 1;
+	char *cwd = NULL;
+
+	int listenfd, connfd, port;
+	socklen_t clientlen;
+	struct sockaddr_in clientaddr;
+
+#if (MINI_HTTPD_HTTPS_ENABLED == 1)
+	int sslport;
+	char dossl = 0, *sslportp = NULL;
+#endif
+
+	openlog(argv[0], LOG_NDELAY | LOG_PID, LOG_DAEMON);
+	cwd = (char *)get_current_dir_name();
+	strcpy(tmpcwd, cwd);
+	strcat(tmpcwd, "/");
+	/* parse argv */
+
+#if (MINI_HTTPD_HTTPS_ENABLED == 1)
+	parse_option(argc, argv, &isdaemon, &portp, &logp, &sslportp, &dossl);
+	sslportp == NULL ? (sslport = atoi(GetConfig(cwd, "https"))) : (sslport = atoi(sslportp));
+
+	if (dossl == 1 || strcmp(GetConfig(cwd, "dossl"), "yes") == 0)
+		dossl = 1;
+#else
+	parse_option(argc, argv, &isdaemon, &portp, &logp);
+#endif
+
+	// portp == NULL ? (port = atoi(GetConfig(cwd, "http"))) : (port = atoi(portp));
+	if (portp == NULL)
+	{
+		port = atoi(GetConfig(cwd, "http"));
+	}
 	else
-		pid = -1;
-	fprintf(fp, "%d", pid);
-	Fclose(fp);
+	{
+		port = atoi(portp);
+	}
+
+	Signal(SIGCHLD, sigChldHandler);
+
+	/* init log */
+	if (logp == NULL)
+		logp = GetConfig(cwd, "log");
+	initlog(strcat(tmpcwd, logp));
+
+	/* whethe show dir */
+	if (strcmp(GetConfig(cwd, "dir"), "no") == 0)
+		isShowdir = 0;
+
+	clientlen = sizeof(clientaddr);
+
+	if (isdaemon == 1 || strcmp(GetConfig(cwd, "daemon"), "yes") == 0)
+		Daemon(1, 1);
+
+	writePid(1);
+
+/* $https start  */
+#if (MINI_HTTPD_HTTPS_ENABLED == 1)
+	if (dossl)
+	{
+		if ((pid = Fork()) == 0)
+		{
+			listenfd = Open_listenfd(sslport);
+			ssl_init(cwd);
+
+			while (1)
+			{
+				connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+				if (access_ornot(cwd, inet_ntoa(clientaddr.sin_addr)) == 0)
+				{
+					clienterror(connfd, "maybe this web server not open to you!", "403", "Forbidden", "mini-httpd couldn't read the file");
+					continue;
+				}
+
+				if ((pid = Fork()) > 0)
+				{
+					Close(connfd);
+					continue;
+				}
+				else if (pid == 0)
+				{
+					mini_httpd_ssl_enable();
+					DoInteraction(cwd, isShowdir, connfd);
+					exit(1);
+				}
+			}
+		}
+	}
+#endif
+
+	/* $end https */
+
+	listenfd = Open_listenfd(port);
+	while (1)
+	{
+		connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+		if (access_ornot(cwd, inet_ntoa(clientaddr.sin_addr)) == 0)
+		{
+			clienterror(connfd, "maybe this web server not open to you!", "403", "Forbidden", "mini-httpd couldn't read the file");
+			continue;
+		}
+
+		if ((pid = Fork()) > 0)
+		{
+			Close(connfd);
+			continue;
+		}
+		else if (pid == 0)
+		{
+			DoInteraction(cwd, isShowdir, connfd);
+
+			exit(1);
+		}
+	}
 }
-/* $end writePid  */
+/* $end main */

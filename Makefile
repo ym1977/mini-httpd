@@ -36,10 +36,10 @@ SOFLAGS += -lpthread
 
 ################################################################################
 SRC_CFILES = $(SRC_PATH)/main.c		\
-	$(SRC_PATH)/daemon_init.c	\
-	$(SRC_PATH)/log.c 		\
+	$(SRC_PATH)/mini_httpd_daemon.c	\
 	$(SRC_PATH)/mini_httpd_debug.c	\
 	$(SRC_PATH)/mini_httpd_helper.c	\
+	$(SRC_PATH)/mini_httpd_log.c 	\
 	$(SRC_PATH)/mini_httpd_mutex.c	\
 	$(SRC_PATH)/parse_config.c 	\
 	$(SRC_PATH)/parse_option.c	\
