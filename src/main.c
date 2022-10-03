@@ -1,5 +1,6 @@
 #include "mini_httpd_helper.h"
 
+#include "mini_httpd_debug.h"
 #include "mini_httpd_log.h"
 
 #include "parse_config.h"
@@ -8,6 +9,12 @@
 
 #include <unistd.h>
 
+#ifdef MINIHTTPD_MODULE
+#undef MINIHTTPD_MODULE
+#endif
+
+#define MINIHTTPD_MODULE "APP"
+
 /*$sigChldHandler to protect zimble process */
 static void sigChldHandler(int signo)
 {
@@ -15,108 +22,6 @@ static void sigChldHandler(int signo)
 	return;
 }
 /*$end sigChldHandler */
-
-/*
- * DoInteraction - handle one HTTP request/response transaction
- */
-/* $begin DoInteraction */
-static void DoInteraction(const char *pCwd, int dirShowMode, int fd)
-{
-	int is_static, contentLength = 0, isGet = 1;
-	struct stat sbuf;
-	char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-	char filename[MAXLINE], cgiargs[MAXLINE];
-	// char httpspostdata[MAXLINE];
-	rio_t rio;
-
-	memset(buf, 0, MAXLINE);
-
-#if (MINI_HTTPD_HTTPS_ENABLED == 1)
-	if (mini_httpd_ssl_enabled())
-	{
-		ssl_prepare(fd, buf, sizeof(buf));
-	}
-	else
-#endif
-	{
-		/* Read request line and headers */
-		Rio_readinitb(&rio, fd);
-		Rio_readlineb(&rio, buf, MAXLINE);
-	}
-
-	sscanf(buf, "%s %s %s", method, uri, version);
-
-	if (strcasecmp(method, "GET") != 0 && strcasecmp(method, "POST") != 0)
-	{
-		clienterror(fd, method, "501", "Not Implemented",
-					"mini-httpd does not implement this method");
-		return;
-	}
-
-	/* Parse URI from GET request */
-	is_static = parse_uri(pCwd, uri, filename, cgiargs);
-
-	if (lstat(filename, &sbuf) < 0)
-	{
-		clienterror(fd, filename, "404", "Not found",
-					"mini-httpd couldn't find this file");
-		return;
-	}
-
-	if (S_ISDIR(sbuf.st_mode) && dirShowMode)
-		serve_dir(fd, filename);
-
-	if (strcasecmp(method, "POST") == 0)
-		isGet = 0;
-
-	if (is_static)
-	{ /* Serve static content */
-
-#if (MINI_HTTPD_HTTPS_ENABLED == 1)
-		if (!mini_httpd_ssl_enabled())
-#endif
-			get_requesthdrs(&rio); /* because https already read the headers -> SSL_read()  */
-
-		if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode))
-		{
-			clienterror(fd, filename, "403", "Forbidden",
-						"mini-httpd couldn't read the file");
-			return;
-		}
-		serve_static(fd, filename, sbuf.st_size);
-	}
-	else
-	{ /* Serve dynamic content */
-		if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode))
-		{
-			clienterror(fd, filename, "403", "Forbidden",
-						"mini-httpd couldn't run the CGI program");
-			return;
-		}
-
-		if (isGet)
-		{
-#if (MINI_HTTPD_HTTPS_ENABLED == 1)
-			if (!mini_httpd_ssl_enabled())
-#endif
-				get_requesthdrs(&rio); /* because https already read headers by SSL_read() */
-
-			get_dynamic(fd, filename, cgiargs);
-		}
-		else
-		{
-#if (MINI_HTTPD_HTTPS_ENABLED == 1)
-			if (mini_httpd_ssl_enabled())
-				https_getlength(buf, &contentLength);
-			else
-#endif
-				post_requesthdrs(&rio, &contentLength);
-
-			post_dynamic(fd, filename, contentLength, &rio);
-		}
-	}
-}
-/* $end DoInteraction */
 
 int main(int argc, char *argv[])
 {
@@ -127,16 +32,20 @@ int main(int argc, char *argv[])
 	int isShowdir = 1;
 	char *cwd = NULL;
 
-	int listenfd, connfd, port;
+	int port = 80;
+	int listenfd;
+	int clientfd;
+
 	socklen_t clientlen;
 	struct sockaddr_in clientaddr;
 
 #if (MINI_HTTPD_HTTPS_ENABLED == 1)
-	int sslport;
+	int sslport = 443;
 	char dossl = 0, *sslportp = NULL;
 #endif
 
 	openlog(argv[0], LOG_NDELAY | LOG_PID, LOG_DAEMON);
+
 	cwd = (char *)get_current_dir_name();
 	strcpy(tmpcwd, cwd);
 	strcat(tmpcwd, "/");
@@ -189,24 +98,26 @@ int main(int argc, char *argv[])
 			listenfd = Open_listenfd(sslport);
 			ssl_init(cwd);
 
+			MINIHTTPD_LOG_DEBUG("start https service on port %d\n", sslport);
+
 			while (1)
 			{
-				connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+				clientfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
 				if (access_ornot(cwd, inet_ntoa(clientaddr.sin_addr)) == 0)
 				{
-					clienterror(connfd, "maybe this web server not open to you!", "403", "Forbidden", "mini-httpd couldn't read the file");
+					clienterror(clientfd, "maybe this web server not open to you!", "403", "Forbidden", "mini-httpd couldn't read the file");
 					continue;
 				}
 
 				if ((pid = Fork()) > 0)
 				{
-					Close(connfd);
+					Close(clientfd);
 					continue;
 				}
 				else if (pid == 0)
 				{
 					mini_httpd_ssl_enable();
-					DoInteraction(cwd, isShowdir, connfd);
+					DoInteraction(cwd, isShowdir, clientfd);
 					exit(1);
 				}
 			}
@@ -217,23 +128,25 @@ int main(int argc, char *argv[])
 	/* $end https */
 
 	listenfd = Open_listenfd(port);
+	MINIHTTPD_LOG_DEBUG("start http service on port %d\n", port);
+
 	while (1)
 	{
-		connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+		clientfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
 		if (access_ornot(cwd, inet_ntoa(clientaddr.sin_addr)) == 0)
 		{
-			clienterror(connfd, "maybe this web server not open to you!", "403", "Forbidden", "mini-httpd couldn't read the file");
+			clienterror(clientfd, "maybe this web server not open to you!", "403", "Forbidden", "mini-httpd couldn't read the file");
 			continue;
 		}
 
 		if ((pid = Fork()) > 0)
 		{
-			Close(connfd);
+			Close(clientfd);
 			continue;
 		}
 		else if (pid == 0)
 		{
-			DoInteraction(cwd, isShowdir, connfd);
+			DoInteraction(cwd, isShowdir, clientfd);
 
 			exit(1);
 		}

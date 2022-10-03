@@ -19,7 +19,7 @@
 #endif
 
 #if !defined(__ANDROID__)
-static int LogFileOutputMode = 0;
+static int LogFileOutputMode = 1;
 static char LogFilePrefix[64] = {'\0'};
 static MiniHttpdMutex LogFileLocker;
 
@@ -57,7 +57,7 @@ extern "C"
         else
         {
             // strcpy(LogFilePrefix, pFilePrefix);
-            sprintf(LogFilePrefix, "%s_%.4d", "Sinwt", pid);
+            sprintf(LogFilePrefix, "%s_%.4d", "mini-httpd", pid);
         }
 
         mini_httpd_mutex_init(&LogFileLocker);

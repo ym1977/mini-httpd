@@ -33,6 +33,8 @@ extern "C"
     /* $end ssl */
 #endif
 
+    void DoInteraction(const char *pCwd, int dirShowMode, int fd);
+
 #ifdef __cplusplus
 };
 #endif

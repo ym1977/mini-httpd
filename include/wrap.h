@@ -143,6 +143,6 @@ int Setgroups(size_t size, const gid_t *list);
 int Setgid(gid_t gid);
 int Initgroups(const char *user, gid_t group);
 int Setuid(uid_t uid);
-int Pipe(int pipefd[2]);
+int CreatePipe(int pipefd[2]);
 
 #endif

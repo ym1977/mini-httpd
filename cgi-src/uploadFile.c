@@ -22,7 +22,7 @@ int main(void)
     if (p == NULL)
         sprintf(content, "Something is wrong\r\n");
     else
-        sprintf(content, "OK, Get User Post Info: %s\r\n", data);
+        sprintf(content, "OK, Get User Post Info: %d, %s\r\n", length, data);
 
     printf("Content-length: %d\r\n", (int)strlen(content));
     printf("Content-type: text/html\r\n\r\n");

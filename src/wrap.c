@@ -42,7 +42,8 @@ void Execve(const char *filename, char *const argv[], char *const envp[])
 {
     if (execve(filename, argv, envp) < 0)
     {
-        syslog(LOG_CRIT, "Execve  error");
+        syslog(LOG_CRIT, "Execve error");
+
         unix_error("Execve error");
     }
 }
@@ -836,12 +837,15 @@ int Setuid(uid_t uid)
     return 1;
 }
 
-int Pipe(int pipefd[2])
+int CreatePipe(int pipefd[2])
 {
     if (pipe(pipefd) == -1)
     {
         syslog(LOG_ERR, "Pipe error");
         unix_error("Pipe error");
+
+        return -1;
     }
-    return 1;
+
+    return 0;
 }

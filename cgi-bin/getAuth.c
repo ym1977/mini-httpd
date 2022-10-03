@@ -22,10 +22,10 @@ int main(void)
     }
 
     /* Make the response body */
-    sprintf(content, "Welcome to auth.com:%s and %s\r\n<p>", name, passwd);
+    sprintf(content, "Get User Info: %s and %s\r\n<p>", name, passwd);
     sprintf(content, "%s\r\n", content);
 
-    sprintf(content, "%sThanks for visiting!\r\n", content);
+    sprintf(content, "%sYou are welcom !\r\n", content);
 
     /* Generate the HTTP response */
     printf("Content-length: %d\r\n", (int)strlen(content));

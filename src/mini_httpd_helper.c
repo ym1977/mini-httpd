@@ -1,6 +1,8 @@
 #include "mini_httpd_helper.h"
 
+#include "mini_httpd_debug.h"
 #include "mini_httpd_log.h"
+
 #include "parse_config.h"
 
 #include <dirent.h>
@@ -12,6 +14,12 @@
 #endif
 
 #define PID_FILE "pid.file"
+
+#ifdef MINIHTTPD_MODULE
+#undef MINIHTTPD_MODULE
+#endif
+
+#define MINIHTTPD_MODULE "Helper"
 
 #ifdef __cplusplus
 extern "C"
@@ -69,7 +77,9 @@ extern "C"
         char *p;
 
         Rio_readlineb(rp, buf, MAXLINE);
+
         writetime(); /* write access time in log file */
+
         while (strcmp(buf, "\r\n"))
         {
             Rio_readlineb(rp, buf, MAXLINE);
@@ -82,6 +92,7 @@ extern "C"
             writelog(buf);
             // printf("%s", buf);
         }
+
         return;
     }
     /* $end post_requesthdrs */
@@ -220,19 +231,26 @@ extern "C"
         sprintf(length, "%d", contentLength);
         memset(data, 0, MAXLINE);
 
-        Pipe(p);
+        if (CreatePipe(p) != 0)
+        {
+            MINIHTTPD_LOG_DEBUG("create pipe failed, %d, %s\n", errno, strerror(errno));
 
-        /*       The post data is sended by client,we need to redirct the data to cgi stdin.
-         *  	 so, child read contentLength bytes data from fp,and write to p[1];
-         *    parent should redirct p[0] to stdin. As a result, the cgi script can
-         *    read the post data from the stdin.
+            // TODO: how to do ?
+        }
+
+        /*  The post data is sent by client, we need to redirct the data to cgi stdin.
+         *  So, child read ContentLength bytes data from fp, and write to p[1];
+         *  parent should redirct p[0] to stdin. As a result, the cgi script can
+         *  read the post data from the stdin.
          */
 
-        /* https already read all data ,include post data  by SSL_read() */
+        /* https already read all data ,include post data by SSL_read() */
 
         if (Fork() == 0)
-        { /* child  */
+        {
+            /* child  */
             Close(p[0]);
+
 #if (MINI_HTTPD_HTTPS_ENABLED == 1)
             if (ishttps)
             {
@@ -243,7 +261,11 @@ extern "C"
             {
                 Rio_readnb(rp, data, contentLength);
                 Rio_writen(p[1], data, contentLength);
+
+                // writelog(data);
+                // printf("%s\n", data);
             }
+
             exit(0);
         }
 
@@ -268,7 +290,12 @@ extern "C"
 #if (MINI_HTTPD_HTTPS_ENABLED == 1)
         if (ishttps) /* if ishttps,we couldnot redirct stdout to client,we must use SSL_write */
         {
-            Pipe(httpsp);
+            if (CreatePipe(httpsp) != 0)
+            {
+                MINIHTTPD_LOG_DEBUG("create pipe failed, %d, %s\n", errno, strerror(errno));
+
+                // TODO: how to do ?
+            }
 
             if (Fork() == 0)
             {
@@ -311,7 +338,8 @@ extern "C"
             return 1;
         }
         else
-        { /* Dynamic content */
+        {
+            /* Dynamic content */
             ptr = index(uri, '?');
             if (ptr)
             {
@@ -322,6 +350,7 @@ extern "C"
                 strcpy(cgiargs, "");
             strcpy(filename, pCwd);
             strcat(filename, uri);
+
             return 0;
         }
     }
@@ -407,9 +436,16 @@ extern "C"
 #if (MINI_HTTPD_HTTPS_ENABLED == 1)
         if (ishttps)
         {
-            Pipe(p);
+            if (CreatePipe(p) != 0)
+            {
+                MINIHTTPD_LOG_DEBUG("create pipe failed, %d, %s\n", errno, strerror(errno));
+
+                // TODO: how to do ?
+            }
+
             if (Fork() == 0)
-            { /* child  */
+            {
+                /* child  */
                 Close(p[0]);
                 setenv("QUERY_STRING", cgiargs, 1);
                 Dup2(p[1], STDOUT_FILENO);            /* Redirect stdout to p[1] */
@@ -423,7 +459,8 @@ extern "C"
 #endif
         {
             if (Fork() == 0)
-            { /* child */
+            {
+                /* child */
                 /* Real server would set all CGI vars here */
                 setenv("QUERY_STRING", cgiargs, 1);
                 Dup2(fd, STDOUT_FILENO);              /* Redirect stdout to client */
@@ -566,6 +603,128 @@ extern "C"
     }
 #endif
     /* $end https_getlength  */
+
+    /*
+     * DoInteraction - handle one HTTP request/response transaction
+     */
+    /* $begin DoInteraction */
+    void DoInteraction(const char *pCwd, int dirShowMode, int fd)
+    {
+        int is_static, contentLength = 0, isGet = 1;
+        struct stat sbuf;
+        char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+        char filename[MAXLINE], cgiargs[MAXLINE];
+        // char httpspostdata[MAXLINE];
+        rio_t rio;
+
+        memset(buf, 0, MAXLINE);
+
+#if (MINI_HTTPD_HTTPS_ENABLED == 1)
+        if (mini_httpd_ssl_enabled())
+        {
+            ssl_prepare(fd, buf, sizeof(buf));
+        }
+        else
+#endif
+        {
+            /* Read request line and headers */
+            Rio_readinitb(&rio, fd);
+            Rio_readlineb(&rio, buf, MAXLINE);
+        }
+
+        sscanf(buf, "%s %s %s", method, uri, version);
+
+        if (strcasecmp(method, "GET") != 0 && strcasecmp(method, "POST") != 0)
+        {
+            clienterror(fd, method, "501", "Not Implemented",
+                        "mini-httpd does not implement this method");
+            return;
+        }
+
+        MINIHTTPD_LOG_DEBUG("CLIENT: %s\n", buf);
+
+        /* Parse URI from GET request */
+        is_static = parse_uri(pCwd, uri, filename, cgiargs);
+
+        MINIHTTPD_LOG_DEBUG("CWD: %s\nStatic File: %d, Name: %s\n", pCwd, is_static, filename);
+
+        if (lstat(filename, &sbuf) < 0)
+        {
+            clienterror(fd, filename, "404", "Not found",
+                        "mini-httpd couldn't find this file");
+            return;
+        }
+
+        if (S_ISDIR(sbuf.st_mode) && dirShowMode)
+        {
+            MINIHTTPD_LOG_DEBUG("User Access Dir, Name: %s\n", is_static, filename);
+
+            serve_dir(fd, filename);
+        }
+
+        if (strcasecmp(method, "POST") == 0)
+        {
+            isGet = 0;
+        }
+
+        if (is_static)
+        {
+            /* Serve static content */
+#if (MINI_HTTPD_HTTPS_ENABLED == 1)
+            /* because https already read the headers -> SSL_read()  */
+            if (!mini_httpd_ssl_enabled())
+#endif
+                get_requesthdrs(&rio);
+
+            if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode))
+            {
+                clienterror(fd, filename, "403", "Forbidden",
+                            "mini-httpd couldn't read the file");
+                return;
+            }
+
+            MINIHTTPD_LOG_DEBUG("Static File: %s, Size: %d\n", filename, sbuf.st_size);
+
+            serve_static(fd, filename, sbuf.st_size);
+        }
+        else
+        {
+            /* Serve dynamic content */
+            if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode))
+            {
+                clienterror(fd, filename, "403", "Forbidden",
+                            "mini-httpd couldn't run the CGI program");
+                return;
+            }
+
+            if (isGet)
+            {
+#if (MINI_HTTPD_HTTPS_ENABLED == 1)
+                /* because https already read headers by SSL_read() */
+                if (!mini_httpd_ssl_enabled())
+#endif
+                    get_requesthdrs(&rio);
+
+                MINIHTTPD_LOG_DEBUG("GET Dynamic File: %s, CGI Args: %s\n", filename, cgiargs);
+
+                get_dynamic(fd, filename, cgiargs);
+            }
+            else
+            {
+#if (MINI_HTTPD_HTTPS_ENABLED == 1)
+                if (mini_httpd_ssl_enabled())
+                    https_getlength(buf, &contentLength);
+                else
+#endif
+                    post_requesthdrs(&rio, &contentLength);
+
+                MINIHTTPD_LOG_DEBUG("POST Dynamic File: %s, Size: %d\n", filename, contentLength);
+
+                post_dynamic(fd, filename, contentLength, &rio);
+            }
+        }
+    }
+    /* $end DoInteraction */
 
 #ifdef __cplusplus
 };
